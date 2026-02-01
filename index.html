@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Flappy Bird Full Screen</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* Kaydırma çubuklarını yok et */
+        background-color: #70c5ce;
+        user-select: none; /* Yazı seçmeyi engelle */
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+    #scoreBoard {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        color: white;
+        font-family: "Arial Black", Gadget, sans-serif;
+        font-size: 30px;
+        text-shadow: 3px 3px 6px #000;
+        z-index: 10;
+        pointer-events: none;
+    }
+    #message {
+        position: absolute;
+        top: 40%;
+        width: 100%;
+        text-align: center;
+        color: white;
+        font-family: "Arial Black", sans-serif;
+        font-size: 50px;
+        text-shadow: 4px 4px 8px #000;
+        z-index: 10;
+        display: none;
+        pointer-events: none;
+    }
+    #subMessage {
+        font-size: 25px;
+        color: #f1c40f;
+    }
+</style>
+</head>
+<body>
+
+    <div id="scoreBoard">Score: 0</div>
+    <div id="message">GAME OVER<br><span id="subMessage">Click or Press Space to Restart</span></div>
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    var canvas = document.getElementById("gameCanvas");
+    var ctx = canvas.getContext("2d");
+    var scoreDiv = document.getElementById("scoreBoard");
+    var msgDiv = document.getElementById("message");
+
+    // Ekran boyutunu tam yap
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // --- RESİMLER (IMAGES) ---
+    var birdImg = new Image();
+    birdImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/yellowbird-midflap.png";
+
+    var bgImg = new Image();
+    bgImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/background-day.png";
+
+    var pipeNorthImg = new Image();
+    pipeNorthImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/pipe-green.png"; 
+
+    var fgImg = new Image();
+    fgImg.src = "https://raw.githubusercontent.com/samuelcust/flappy-bird-assets/master/sprites/base.png";
+
+    // --- AYARLAR (SETTINGS) ---
+    var gap = 150; // Boru aralığı
+    var constant;
+    var bX = 100;  
+    var bY = 250;
+    var gravity = 0.4; 
+    var velocity = 0;
+    var lift = -7; 
+    var score = 0;
+    var gameActive = true; 
+    var pipeSpacing = 400; // Borular arası mesafe
+
+    var pipe = [];
+    pipe[0] = {
+        x : canvas.width,
+        y : -100,
+        scored: false // Puan alındı mı kontrolü
+    };
+
+    // --- KONTROLLER ---
+    document.addEventListener("keydown", action);
+    document.addEventListener("click", action);
+
+    function action(e) {
+        if (e.type === "click" || e.code === "Space") {
+            if (gameActive) {
+                velocity = lift;
+            } else {
+                resetGame();
+            }
+        }
+    }
+
+    function resetGame() {
+        bY = 250;
+        velocity = 0;
+        score = 0;
+        gameActive = true;
+        pipe = [];
+        pipe[0] = {
+            x : canvas.width,
+            y : -100,
+            scored: false
+        };
+        msgDiv.style.display = "none";
+        scoreDiv.innerHTML = "Score: 0";
+        draw();
+    }
+
+    function draw() {
+        // 1. Arka Planı Çiz
+        var bgWidth = bgImg.width || 288;
+        var numBg = Math.ceil(canvas.width / bgWidth) + 1;
+        for (var k = 0; k < numBg; k++) {
+            ctx.drawImage(bgImg, k * bgWidth, 0, bgWidth, canvas.height);
+        }
+
+        for(var i = 0; i < pipe.length; i++){
+            constant = pipeNorthImg.height + gap;
+
+            // 2. Boruları Çiz
+            // Üst
+            ctx.save(); 
+            ctx.translate(pipe[i].x + pipeNorthImg.width/2, pipe[i].y + pipeNorthImg.height); 
+            ctx.scale(1, -1); 
+            ctx.drawImage(pipeNorthImg, -pipeNorthImg.width/2, 0); 
+            ctx.restore(); 
+            // Alt
+            ctx.drawImage(pipeNorthImg, pipe[i].x, pipe[i].y + constant);
+             
+            if (gameActive) pipe[i].x -= 3; // Hız
+
+            // Yeni Boru Ekle
+            if(pipe[i].x < canvas.width - pipeSpacing && pipe.length < 5 && pipe[pipe.length-1].x < canvas.width - pipeSpacing){ 
+                pipe.push({
+                    x : canvas.width,
+                    y : Math.floor(Math.random() * pipeNorthImg.height) - pipeNorthImg.height,
+                    scored: false
+                });
+            }
+
+            // --- SKOR SİSTEMİ (Düzeltildi) ---
+            // Eğer boru kuşun arkasına geçtiyse ve daha önce puan alınmadıysa
+            if (pipe[i].x + pipeNorthImg.width < bX && !pipe[i].scored) {
+                score++;
+                scoreDiv.innerHTML = "Score: " + score;
+                pipe[i].scored = true; // Puan alındı işaretle
+            }
+
+            // --- ÇARPIŞMA (Düzeltildi) ---
+            var floorY = canvas.height - 100;
+            
+            if( bX + 34 >= pipe[i].x && bX <= pipe[i].x + 52 && 
+                (bY <= pipe[i].y + pipeNorthImg.height || bY+24 >= pipe[i].y + constant) || 
+                bY + 24 >= floorY) {
+                
+                gameActive = false;
+            }
+
+            // Eski boruları sil
+            if (pipe[i].x < -60) {
+                pipe.shift();
+                i--; // Diziyi kaydırdığımız için sayacı düzelt
+            }
+        }
+
+        // 3. Zemini Çiz
+        var fgWidth = fgImg.width || 336;
+        var numFg = Math.ceil(canvas.width / fgWidth) + 1;
+        var floorY = canvas.height - 100;
+
+        for (var j = 0; j < numFg; j++) {
+            ctx.drawImage(fgImg, j * fgWidth, floorY, fgWidth, 112);
+        }
+
+        // 4. Kuşu Çiz
+        if (gameActive) {
+            velocity += gravity;
+            bY += velocity;
+
+            // --- TAVAN KONTROLÜ (Kuş yukarı kaçamaz) ---
+            if (bY < 0) {
+                bY = 0;
+                velocity = 0;
+            }
+            
+            ctx.save();
+            ctx.translate(bX + 17, bY + 12);
+            var rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (velocity * 0.1)));
+            ctx.rotate(rotation);
+            ctx.drawImage(birdImg, -17, -12);
+            ctx.restore();
+            
+            requestAnimationFrame(draw);
+        } else {
+            // OYUN BİTTİ
+            ctx.drawImage(birdImg, bX, bY);
+            msgDiv.style.display = "block";
+        }
+    }
+
+    setTimeout(draw, 1000);
+
+</script>
+</body>
+</html>
